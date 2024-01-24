@@ -26,8 +26,11 @@
   "homepage": "https://github.com/danmarshall/google-font-to-svg-path#readme",
   "dependencies": {
     "@types/google.fonts": "^1.0.1",
+    "axios": "^1.6.5",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
     "makerjs": "^0.9.71",
-    "opentype.js": "^0.7.3"
+    "opentype.js": "1."
   },
   "devDependencies": {
     "http-server": "^14.1.1",
