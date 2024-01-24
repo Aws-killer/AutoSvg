@@ -177,9 +177,16 @@ app.post('/generateSVGPath', async (req, res) => { // Set default values
         res
     ]
     // logDirectoryTree(path.join(__dirname));
-    const fontPath = fontUrl ? await downloadAndSaveFont(fontUrl) : path.join('/var/task/public/fonts', font);
+    const fontPath = fontUrl ? await downloadAndSaveFont(fontUrl) : path.join(__dirname, 'fonts', font);
     console.log(fontPath)
-    opentype.load(fontPath, (err, loadedFont) => {
+    try {
+        await fs.access(fontPath);
+        console.log('File exists:', fontPath);
+    } catch (error) {
+        console.log(fontPath)
+        res.status(500).json({error: error.message});
+        // Handle the error or throw it
+    }opentype.load(fontPath, (err, loadedFont) => {
         handleRequest(err, loadedFont, config);
     });
 });
