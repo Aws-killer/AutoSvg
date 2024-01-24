@@ -3,6 +3,7 @@ const cors = require('cors');
 const opentype = require('opentype.js');
 const makerjs = require('makerjs');
 const wawoff2 = require('wawoff2');
+const xml2js = require('xml2js');
 const axios = require('axios');
 const fs = require('fs').promises;
 const os = require('os');
@@ -55,7 +56,19 @@ function handleRequest(err, loadedFont, config) {
         for (let i = 0; i < text.length; i++) {
             const letter = text[i];
             const result = callMakerjs(loadedFont, letter, size, union, filled, kerning, separate, bezierAccuracy, units, fill, stroke, strokeWidth, strokeNonScaling, fillRule);
-            individualSVGs[letter] = result.svg;
+            let temp
+            xml2js.parseString(result.svg, {
+                explicitArray: false
+            }, function (err, result) {
+                if (! err) { // Now 'result' contains the JSON representation of the SVG
+                    temp = result
+                } else {
+                    console.error(err);
+                }
+            });
+
+
+            individualSVGs[letter] = temp
         }
         res.status(200).json(individualSVGs); // Return JSON object
     } else { // Generate a single SVG for the entire text
