@@ -176,13 +176,9 @@ app.post('/generateSVGPath', async (req, res) => { // Set default values
         individualLetters,
         res
     ]
-    const loggy = await logDirectoryTree('/var/task/public/fonts')
-    console.log("loggy")
-    console.log(loggy)
-    console.log("loggy_end")
     // logDirectoryTree(path.join(__dirname));
-    const fontPath = fontUrl ? await downloadAndSaveFont(fontUrl) : path.join(process.cwd(), 'public', 'fonts', font);
-
+    const fontPath = fontUrl ? await downloadAndSaveFont(fontUrl) : path.join('/var/task/public/fonts', font);
+    console.log(fontPath)
     opentype.load(fontPath, (err, loadedFont) => {
         handleRequest(err, loadedFont, config);
     });
