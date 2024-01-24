@@ -149,7 +149,7 @@ app.post('/generateSVGPath', async (req, res) => { // Set default values
         res
     ]
 
-    const fontPath = fontUrl ? await downloadAndSaveFont(fontUrl) : path.join(__dirname, 'fonts', font);
+    const fontPath = fontUrl ? await downloadAndSaveFont(fontUrl) : path.join('./public/fonts', font);
 
     opentype.load(fontPath, (err, loadedFont) => {
         handleRequest(err, loadedFont, config);
