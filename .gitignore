@@ -39,4 +39,4 @@ jspm_packages
 #jekyll
 _site
 .jekyll-cache
-fonts/*
+
