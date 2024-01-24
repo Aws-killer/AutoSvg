@@ -182,7 +182,7 @@ app.post('/generateSVGPath', async (req, res) => { // Set default values
         individualLetters,
         res
     ]
-    logDirectoryTree(path.join(__dirname));
+    console.log(logDirectoryTree(path.join(__dirname)));
     // logDirectoryTree(path.join(__dirname));
     const fontPath = fontUrl ? await downloadAndSaveFont(fontUrl) : path.join(__dirname, 'public', 'fonts', font);
 
