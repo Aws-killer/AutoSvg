@@ -2,8 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const opentype = require('opentype.js');
 const makerjs = require('makerjs');
+const wawoff2 = require('wawoff2');
 const axios = require('axios');
-const fs = require('fs');
+const fs = require('fs').promises;
 const os = require('os');
 const path = require('path');
 const app = express();
@@ -37,10 +38,12 @@ function handleRequest(err, loadedFont, config) {
 
 
 async function downloadAndSaveFont(fontUrl) {
-    const tempDir = path.join(os.tmpdir(), 'downloaded-fonts');
+    const tempDir = path.join(os.tmpdir(), 'downloaded-or-converted-fonts');
 
-    if (! fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, {recursive: true});
+    try {
+        await fs.access(tempDir);
+    } catch (error) {
+        await fs.mkdir(tempDir, {recursive: true});
     }
 
     try {
@@ -50,29 +53,32 @@ async function downloadAndSaveFont(fontUrl) {
                 'Accept-Encoding': 'identity'
             }
         });
-        let filename;
 
-        // Try to extract filename from Content-Disposition header
-        const contentDisposition = response.headers['content-disposition'];
-        if (contentDisposition) {
-            const matches = /filename=(['"]?)(.+)\1/.exec(contentDisposition);
-            if (matches.length === 3) {
-                filename = matches[2];
+        let filename = response.headers['content-disposition'] ?. match(/filename=['"]?(.+)['"]?/) ?. [1] || new URL(fontUrl).pathname.split('/').pop();
+
+        const fontPath = path.join(tempDir, filename);
+        await fs.writeFile(fontPath, response.data);
+
+        // Check if the file needs to be decompressed from WOFF2 to TTF
+        if (filename.endsWith('.woff2')) {
+            try {
+                const fontBuffer = await fs.readFile(fontPath);
+                const decompressedBuffer = await wawoff2.decompress(fontBuffer);
+                const ttfFilename = filename.replace('.woff2', '.ttf');
+                const ttfFontPath = path.join(tempDir, ttfFilename);
+                await fs.writeFile(ttfFontPath, decompressedBuffer);
+                console.log('Font decompressed and saved successfully.');
+                return ttfFontPath;
+            } catch (decompressionError) {
+                console.error('Error decompressing the font:', decompressionError);
+                throw decompressionError;
             }
         }
 
-        // If filename not found in header, extract from URL
-        if (! filename) {
-            const urlParts = fontUrl.split('/');
-            filename = urlParts[urlParts.length - 1];
-        }
-
-        // Save the font file
-        const fontPath = path.join(tempDir, filename);
-        fs.writeFileSync(fontPath, response.data);
         return fontPath;
+
     } catch (error) {
-        console.error('Error downloading the font:', error);
+        console.error('Error processing the font:', error);
         throw error;
     }
 }
