@@ -14,6 +14,40 @@ app.use(express.json());
 app.use(express.urlencoded({extended: true}));
 
 
+function logDirectoryTree(dir, prefix = '') {
+    fs.readdir(dir, {
+        withFileTypes: true
+    }, (err, dirents) => {
+        if (err) {
+            console.error('Error reading directory:', err);
+            return;
+        }
+
+        dirents.forEach((dirent, index) => {
+            const name = dirent.name;
+            const filePath = path.join(dir, name);
+            const isLast = index === dirents.length - 1;
+
+            // Determine the prefix for the next level
+            let newPrefix = prefix;
+            if (! isLast) {
+                newPrefix += '├── ';
+            } else {
+                newPrefix += '└── ';
+            }
+
+            if (dirent.isDirectory()) {
+                console.log(prefix + '└─' + name);
+                // Recursively log subdirectories
+                logDirectoryTree(filePath, newPrefix);
+            } else {
+                console.log(prefix + '└─' + name);
+            }
+        });
+    });
+}
+
+
 function handleRequest(err, loadedFont, config) {
     const [text, fontName, size, union, filled, kerning, separate, bezierAccuracy, units, fill, stroke, strokeWidth, strokeNonScaling, fillRule, individualLetters, res] = config;
 
@@ -148,7 +182,8 @@ app.post('/generateSVGPath', async (req, res) => { // Set default values
         individualLetters,
         res
     ]
-
+    logDirectoryTree(path.join(__dirname));
+    // logDirectoryTree(path.join(__dirname));
     const fontPath = fontUrl ? await downloadAndSaveFont(fontUrl) : path.join(__dirname, 'public', 'fonts', font);
 
     opentype.load(fontPath, (err, loadedFont) => {
