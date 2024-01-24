@@ -1,3 +1,3 @@
 # Run
 
-`npm run start-api`
+`node run app.js`
