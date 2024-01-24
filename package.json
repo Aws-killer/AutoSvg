@@ -1,39 +1,22 @@
 {
-  "name": "google-font-to-svg-path",
+  "name": "SVGMAKER",
   "version": "1.0.0",
-  "description": "Create an SVG path from a Google font",
-  "main": "index.js",
+  "description": "Description of your app",
   "scripts": {
-    "build": "tsc ./index.ts",
-    "start": "http-server -c-1 -o",
-    "start-api": "node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node app.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npm install"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/danmarshall/google-font-to-svg-path.git"
-  },
-  "keywords": [
-    "google",
-    "fonts",
-    "svg"
-  ],
-  "author": "Dan Marshall",
+  "author": "AWS",
   "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/danmarshall/google-font-to-svg-path/issues"
-  },
-  "homepage": "https://github.com/danmarshall/google-font-to-svg-path#readme",
   "dependencies": {
-    "@types/google.fonts": "^1.0.1",
     "axios": "^1.6.5",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "makerjs": "^0.9.71",
-    "opentype.js": "1."
+    "opentype.js": "1.3.4"
   },
   "devDependencies": {
-    "http-server": "^14.1.1",
     "typescript": "2.5.2"
   }
 }
