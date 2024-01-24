@@ -4,7 +4,7 @@
   "description": "Description of your app",
   "scripts": {
     "start": "npm install && node app.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "AWS",
   "license": "MIT",
