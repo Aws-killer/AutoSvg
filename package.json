@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "description": "Description of your app",
   "scripts": {
-    "start": "node app.js",
+    "start": "npm install && node app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npm install"
   },
   "author": "AWS",
   "license": "MIT",
