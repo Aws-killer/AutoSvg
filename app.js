@@ -38,6 +38,11 @@ function handleRequest(err, loadedFont, config) {
 
 async function downloadAndSaveFont(fontUrl) {
     const tempDir = path.join(os.tmpdir(), 'downloaded-fonts');
+
+    if (! fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, {recursive: true});
+    }
+
     try {
         const response = await axios.get(fontUrl, {
             responseType: 'arraybuffer',
