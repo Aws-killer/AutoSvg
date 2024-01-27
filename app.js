@@ -1,216 +1,59 @@
 const express = require('express');
-const cors = require('cors');
-const opentype = require('opentype.js');
-const makerjs = require('makerjs');
 const axios = require('axios');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
 const app = express();
 
-app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({extended: true}));
 
+app.get('/', async (req, res) => {
+  try {
+    const queryParam = req.query.query;
+    const prompts = req.query.prompts;
 
-function handleRequest(err, loadedFont, config) {
-    const [text, fontName, size, union, filled, kerning, separate, bezierAccuracy, units, fill, stroke, strokeWidth, strokeNonScaling, fillRule, individualLetters, res] = config;
+    const headers = {
+        'authority': 'lexica.art',
+        'accept': 'application/json, text/plain, */*',
+        'content-type': 'application/json',
+        'Cookie': '__Host-next-auth.csrf-token=0a5027ec7a9c006dd28b3c98f9c66d678daad62039ecd90fbf65a28f320ceed2%7C1d772410a39f4388fe41221b0a34eab40b9cf6983b47f756199ca1e40258d986; __Secure-next-auth.callback-url=https%3A%2F%2Flexica.art; __Secure-next-auth.session-token=eyJhbGciOiJkaXIiLCJlbmMiOiJBMjU2R0NNIn0..tqQ2tRiypPrR6Yx6.UgblBLIGGccLY_mSGFQvYg3I5xzmCo9bp_M_GsuGRRAa29xvaqHrFiGs-RAbdbdSEquP6-NGHziDx3iKEEl2wPISS4DE2mHxaiCgWHxgrYzcvvneg2ZG67JALFkdiWcmhwjcA48dZ_JX6zb5tOJcJV6t-_aTxhoniuXzcjXu7qSIdLXE0xY1cAq_CKJB1xfXKlAxndCNkGt3EmA_S2GMCub0RAopK4r2e7rrPuUWWoKcZ7NUBfi56mgFymvz2cG5bd2MPwG2zb1RO-mF0JwrglCZ_PksGlC2roduylvavj51ZM2Pwo52cwJ29ngYzg2hsMhaBswGoqRoyznuD6_WKPiSZivAee7MMyVrDCOyYqrery2FVjeapt72zP0S7n3YRp-iV5eQxmHjpgbFIEgn.sj9wKm30l__oBZhFoYSoRw',
+    };
 
-    if (err) {
-        console.error('Font could not be loaded:', err);
-        return res.status(500).json({error: err.message});
+    const targetURL = 'https://lexica.art/api/infinite-prompts';
+    let requestBody = {
+      text: queryParam,
+      model: 'lexica-aperture-v3.5',
+      searchMode: 'images',
+      source: 'search',
+      cursor: 0,
+    };
+
+    // Using Axios for the HTTP request
+    let response = await axios.post(targetURL, requestBody, { headers });
+
+    if (prompts) {
+      let temp_prompts = response.data.prompts;
+      requestBody.cursor = 50;
+      response = await axios.post(targetURL, requestBody, { headers });
+      temp_prompts = [...response.data.prompts, ...temp_prompts];
+      res.json(temp_prompts);
+    } else {
+      const jsonResponse = response.data;
+      const images = [...jsonResponse.prompts.map(prompt => prompt.images).flat(), ...jsonResponse.images];
+
+      let uniqueListOfObjects = images.filter((obj, index, self) => {
+        return self.findIndex((otherObj) => areObjectsEqual(obj, otherObj)) === index;
+      });
+
+      res.json(uniqueListOfObjects);
     }
-
-    if (individualLetters) { // Generate individual SVGs for each letter and store them in a JSON object
-        const individualSVGs = {};
-        for (let i = 0; i < text.length; i++) {
-            const letter = text[i];
-            const result = callMakerjs(loadedFont, letter, size, union, filled, kerning, separate, bezierAccuracy, units, fill, stroke, strokeWidth, strokeNonScaling, fillRule);
-            individualSVGs[letter] = result.svg;
-        }
-        res.status(200).json(individualSVGs); // Return JSON object
-    } else { // Generate a single SVG for the entire text
-        const result = callMakerjs(loadedFont, text, size, union, filled, kerning, separate, bezierAccuracy, units, fill, stroke, strokeWidth, strokeNonScaling, fillRule);
-        res.status(200).send(result.svg);
-    }
-}
-
-
-async function downloadAndSaveFont(fontUrl) {
-    const tempDir = path.join(os.tmpdir(), 'downloaded-fonts');
-    try {
-        const response = await axios.get(fontUrl, {
-            responseType: 'arraybuffer',
-            headers: {
-                'Accept-Encoding': 'identity'
-            }
-        });
-        let filename;
-
-        // Try to extract filename from Content-Disposition header
-        const contentDisposition = response.headers['content-disposition'];
-        if (contentDisposition) {
-            const matches = /filename=(['"]?)(.+)\1/.exec(contentDisposition);
-            if (matches.length === 3) {
-                filename = matches[2];
-            }
-        }
-
-        // If filename not found in header, extract from URL
-        if (! filename) {
-            const urlParts = fontUrl.split('/');
-            filename = urlParts[urlParts.length - 1];
-        }
-
-        // Save the font file
-        const fontPath = path.join(tempDir, filename);
-        fs.writeFileSync(fontPath, response.data);
-        return fontPath;
-    } catch (error) {
-        console.error('Error downloading the font:', error);
-        throw error;
-    }
-}
-
-
-function callMakerjs(font, text, size, union, filled, kerning, separate, bezierAccuracy, units, fill, stroke, strokeWidth, strokeNonScaling, fillRule) { // Generate the text using a font
-    var textModel = new makerjs.models.Text(font, text, size, union, false, bezierAccuracy, {kerning});
-
-    if (separate) {
-        for (var i in textModel.models) {
-            textModel.models[i].layer = i;
-        }
-    }
-
-    var svg = makerjs.exporter.toSVG(textModel, {
-        fill: filled ? fill : undefined,
-        stroke: stroke ? stroke : undefined,
-        strokeWidth: strokeWidth ? strokeWidth : undefined,
-        fillRule: fillRule ? fillRule : undefined,
-        scalingStroke: ! strokeNonScaling
-    });
-
-    var dxf = makerjs.exporter.toDXF(textModel, {
-        units: units,
-        usePOLYLINE: true
-    });
-
-    return {svg, dxf};
-}
-
-app.post('/generateSVGPath', async (req, res) => { // Set default values
-    const {
-        text,
-        size = 72, // Default font size
-        union = false,
-        filled = true,
-        kerning = true,
-        separate = false,
-        bezierAccuracy = 2,
-        units = 'mm', // Default units
-        fill = 'black', // Default fill color
-        stroke = 'none', // Default stroke color
-        strokeWidth = '1', // Default stroke width
-        strokeNonScaling = false,
-        fillRule = 'nonzero', // Default fill rule
-        fontUrl,
-        individualLetters = false,
-        font = 'Roobert-Regular.ttf' // Default local font
-    } = req.body;
-
-
-    const config = [
-        text,
-        font,
-        size,
-        union,
-        filled,
-        kerning,
-        separate,
-        bezierAccuracy,
-        units,
-        fill,
-        stroke,
-        strokeWidth,
-        strokeNonScaling,
-        fillRule,
-        individualLetters,
-        res
-    ]
-
-    const fontPath = fontUrl ? await downloadAndSaveFont(fontUrl) : path.join(__dirname, 'fonts', font);
-
-    opentype.load(fontPath, (err, loadedFont) => {
-        handleRequest(err, loadedFont, config);
-    });
+  } catch (error) {
+    res.status(500).send(`Error: ${error.message}`);
+  }
 });
 
-
-app.post('/generateSVGPathWithGoogleFont', async (req, res) => { // Default values for parameters
-    const {
-        text,
-        fontName = 'Open Sans', // Default Google Font
-        size = 72, // Default font size
-        union = false, // Default union
-        filled = true, // Default filled
-        kerning = true, // Default kerning
-        separate = false, // Default separate
-        bezierAccuracy = 2, // Default bezierAccuracy
-        units = 'mm', // Default units
-        fill = 'black', // Default fill color
-        stroke = 'none', // Default stroke
-        strokeWidth = '1', // Default stroke width
-        strokeNonScaling = false, // Default strokeNonScaling
-        fillRule = 'nonzero', // Default fillRule
-        individualLetters = false
-    } = req.body;
-    const config = [
-        text,
-        fontName,
-        size,
-        union,
-        filled,
-        kerning,
-        separate,
-        bezierAccuracy,
-        units,
-        fill,
-        stroke,
-        strokeWidth,
-        strokeNonScaling,
-        fillRule,
-        individualLetters,
-        res
-    ]
-    const apiKey = 'AIzaSyAOES8EmKhuJEnsn9kS1XKBpxxp-TgN8Jc'; // Use environment variable for API key
-
-    try { // Fetch the list of fonts from Google Fonts API
-        const response = await axios.get(`https://www.googleapis.com/webfonts/v1/webfonts?key=${apiKey}`);
-        const fonts = response.data.items;
-
-        // Find the font with the given name
-        const fontDetails = fonts.find(f => f.family === fontName);
-        if (! fontDetails) {
-            return res.status(404).send('Font not found');
-        }
-
-
-        // Load the font using opentype.js
-        let fontUrl = fontDetails.files.regular; // Adjust based on font variants if needed
-        fontUrl = fontUrl.replace("http", 'https')
-        const fontPath = await downloadAndSaveFont(fontUrl);
-
-        opentype.load(fontPath, (err, loadedFont) => {
-            handleRequest(err, loadedFont, config);
-        });
-
-    } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({error: error.message});
-    }
-});
+function areObjectsEqual(obj1, obj2) {
+  return JSON.stringify(obj1) === JSON.stringify(obj2);
+}
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
