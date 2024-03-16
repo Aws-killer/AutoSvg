@@ -210,6 +210,33 @@ app.post('/generateSVGPathWithGoogleFont', async (req, res) => { // Default valu
     }
 });
 
+app.post('/predictions', async (req, res) => {
+    const { input, version } = await req.body;
+    const data = {
+        "input": input,
+        "is_training": false,
+        "create_model": "0",
+        "stream": false,
+        "version": version
+    };
+    try {
+        const response = await fetch('https://replicate.com/api/predictions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                // Add any necessary headers here
+            },
+            body: JSON.stringify(data),
+        });
+        return res.json(response);
+    } catch (error) {
+        console.error('Error:', error);
+        return res.status(500).json({ error: error.message });
+    }
+});
+
+
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
