@@ -227,7 +227,7 @@ app.post('/predictions', async (req, res) => {
     try {
         const response = await axios.post('https://replicate.com/api/predictions',data, { headers }
         );
-        return response.data;
+        return res.json(response.data);
     } catch (error) {
         console.error('Error:', error);
         return res.status(500).json({ error: error.message });
