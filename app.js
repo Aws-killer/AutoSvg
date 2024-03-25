@@ -211,21 +211,19 @@ app.post('/generateSVGPathWithGoogleFont', async (req, res) => { // Default valu
 });
 
 app.post('/predictions', async (req, res) => {
-    const { input, version } = req.body;
-
+    const { input, path } =req.body;
     const headers = {
         'Content-Type': 'application/json',
         // Add any other headers here
     };
-    const data = {
+      const data = {
         "input": input,
         "is_training": false,
         "create_model": "0",
-        "stream": false,
-        "version": version
-    };
+        "stream": false
+      }
     try {
-        const response = await axios.post('https://replicate.com/api/predictions', data, { headers });
+        const response = await axios.post(`https://replicate.com/api/${path}/predictions`, data, { headers });
         return res.json(response.data);
     } catch (error) {
         console.error('Error:', error);
