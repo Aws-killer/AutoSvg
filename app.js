@@ -8,40 +8,33 @@ const axios = require('axios');
 const fs = require('fs').promises;
 const os = require('os');
 const path = require('path');
+const getImageOutline = require('image-outline');
 const app = express();
+
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({extended: true}));
 
 
-async function logDirectoryTree(dir, prefix = '') {
-    let dirents;
-    try {
-        dirents = await fs.readdir(dir, {withFileTypes: true});
-    } catch (err) {
-        console.error('Error reading directory:', err);
-        return;
+// Function to convert polygon data to SVG path
+function polygonToSVGPath(polygon) {
+    if (!polygon || polygon.length === 0) {
+        return ''; // Return empty string if polygon is invalid
     }
 
-    for (let i = 0; i < dirents.length; i++) {
-        const dirent = dirents[i];
-        const name = dirent.name;
-        const filePath = path.join(dir, name);
-        const isLast = i === dirents.length - 1;
-
-        // Determine the prefix for the next level
-        const newPrefix = prefix + (isLast ? '└── ' : '├── ');
-
-        if (dirent.isDirectory()) {
-            console.log(prefix + '└─' + name);
-            // Recursively log subdirectories
-            await logDirectoryTree(filePath, newPrefix);
-        } else {
-            console.log(newPrefix + name);
-        }
+    // Construct the SVG path string
+    let pathString = `M${polygon[0].x},${polygon[0].y}`; // Move to the first point
+    for (let i = 1; i < polygon.length; i++) {
+        pathString += ` L${polygon[i].x},${polygon[i].y}`; // Line to the next point
     }
+    pathString += ' Z'; // Close the path
+
+    return pathString;
 }
+
+
+
 
 function handleRequest(err, loadedFont, config) {
     const [text, fontName, size, union, filled, kerning, separate, bezierAccuracy, units, fill, stroke, strokeWidth, strokeNonScaling, fillRule, individualLetters, res] = config;
@@ -189,7 +182,7 @@ app.post('/generateSVGPath', async (req, res) => { // Set default values
         individualLetters,
         res
     ]
-    // logDirectoryTree(path.join(__dirname));
+
     const fontPath = fontUrl ? await downloadAndSaveFont(fontUrl) : path.join(__dirname, 'public', 'fonts', font);
     console.log(fontPath)
     try {
@@ -290,6 +283,24 @@ app.post('/predictions', async (req, res) => {
     }
 });
 
+// Route handler for /vectorize
+app.post('/vectorize', (req, res) => {
+    const { imageUrl } = req.body; // Extract imageUrl from request body
+
+    // Call getImageOutline to get the polygon data
+    getImageOutline(imageUrl, function (err, polygon) {
+        if (err) {
+            console.error('Error:', err);
+            return res.status(500).json({ error: 'Error vectorizing image' });
+        }
+
+        // Convert polygon data to SVG path
+        const svgPath = polygonToSVGPath(polygon);
+
+        // Send the SVG path back to the client as JSON
+        res.json({ svgPath });
+    });
+});
 
 
 const PORT = process.env.PORT || 3000;
