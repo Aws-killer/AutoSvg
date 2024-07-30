@@ -99,6 +99,11 @@ class Kolors {
         try {
             const response = await axios.get(url, {headers, responseType: 'stream'});
             return new Promise((resolve, reject) => {
+                let timeoutId = setTimeout(() => {
+                    response.data.destroy(); // Close the stream
+                    resolve(sessionHash); // Return session_hash if timeout occurs
+                }, 3000); // 3 seconds timeout
+
                 response.data.on('data', (chunk) => {
                     const lines = chunk.toString().split('\n').filter(line => line.startsWith('data: '));
                     lines.forEach((line) => {
@@ -106,6 +111,7 @@ class Kolors {
                         const eventData = line.substring(6);
                         const eventJson = JSON.parse(eventData);
                         if (eventJson.msg === "process_completed") {
+                            clearTimeout(timeoutId); // Clear the timeout
                             const outputData = eventJson.output ?. data || [];
                             if (outputData.length > 0) {
                                 const fileInfo = outputData[0];
@@ -117,11 +123,13 @@ class Kolors {
                 });
 
                 response.data.on('end', () => {
+                    clearTimeout(timeoutId); // Clear the timeout
                     reject(new Error('Stream ended without completion'));
                     response.data.destroy(); // Close the stream
                 });
 
                 response.data.on('error', (err) => {
+                    clearTimeout(timeoutId); // Clear the timeout
                     reject(err);
                     response.data.destroy(); // Close the stream
                 });
@@ -175,6 +183,17 @@ class Kolors {
 
         const responseText = await this.processRequest("post", url, headers, data);
         return responseText;
+    }
+
+    generateSessionHash() {
+        const length = 11;
+        const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let result = '';
+        for (let i = 0; i < length; i++) {
+            const randomIndex = Math.floor(Math.random() * charset.length);
+            result += charset[randomIndex];
+        }
+        return result;
     }
 } app.use(cors());
 app.use(express.json());
@@ -317,17 +336,31 @@ app.get('/process', async (req, res) => {
     try {
         const fileUrl = "/tmp/gradio/a8afacda04e05001682bb475f128b24002ace7b7/e41b87fb-4cc3-43cd-a6e6-f3dbb08c2399.webp";
         const prompt = req.query.prompt || "Anna, 破旧衣服, 大声喊叫的愤怒脸, 嘴巴张大, 全身, 贫民窟背景, 仙女教母, 时尚TikTok风格衣服, 出现在闪亮和点赞的云中, 脸上带着炫酷的表情, 魔法棒, 变成华丽舞会礼服, 鱼网袜和蕾丝项圈, 震惊表情, 这幅艺术作品致敬了传奇的弗兰克·弗拉泽塔，展示了Loish van Baarle的独特风格和Boris Vallejo的动态笔触。这幅杰作向著名艺术家Ross Tran、Greg Tocchini、Tom Bagshaw和Steve Henderson的才华致敬，创造了一个引人入胜且迷人的场景。";
-
+        const sessionHash = req.query.session_hash || kolors.generateSessionHash()
         // Step 1: Get JWT token
         const jwtToken = await kolors.getJwtToken();
         console.log("JWT Token:", jwtToken);
 
         // Step 2: Join the queue
-        const sessionHash = "l5feg91dxyx"; // Example session hash, replace with actual
         const queueResponse = await kolors.joinQueue(sessionHash, fileUrl, jwtToken, prompt);
         console.log("Queue Response:", queueResponse);
 
-        // Step 3: Get queue data and extract the final URL
+
+        res.send({sessionHash});
+    } catch (error) {
+        console.error("Error:", error);
+        res.status(500).send("An error occurred");
+    }
+});
+
+app.get('/poll', async (req, res) => {
+    const kolors = new Kolors();
+    try {
+        const sessionHash = req.query.session_hash;
+        if (! sessionHash) {
+            return res.status(400).send("session_hash is required");
+        }
+
         const finalUrl = await kolors.getQueueData(sessionHash);
         console.log("Final URL:", finalUrl);
 
@@ -337,7 +370,6 @@ app.get('/process', async (req, res) => {
         res.status(500).send("An error occurred");
     }
 });
-
 
 app.post('/generateSVGPath', async (req, res) => { // Set default values
     const {
