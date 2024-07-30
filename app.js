@@ -11,29 +11,198 @@ const path = require('path');
 const getImageOutline = require('image-outline');
 const app = express();
 
+const FormData = require('form-data');
 
-app.use(cors());
+class Kolors {
+    constructor() {
+        this.commonHeaders = {
+            "accept": "*/*",
+            "accept-language": "en-US,en;q=0.9",
+            "priority": "u=1, i",
+            "referer": "https://kwai-kolors-kolors.hf.space/?__theme=dark",
+            "origin": "https://kwai-kolors-kolors.hf.space"
+        };
+    }
+
+    async processRequest(method, url, headers = {}, data = null, files = null) {
+        const config = {
+            method,
+            url,
+            headers,
+            data,
+            responseType: 'text'
+        };
+
+        if (files) {
+            const form = new FormData();
+            for (const [name, file] of Object.entries(files)) {
+                form.append(name, fs.createReadStream(file.path), {
+                    filename: file.name,
+                    contentType: 'image/webp'
+                });
+            }
+            config.data = form;
+            config.headers = {
+                ...headers,
+                ... form.getHeaders()
+            };
+        } else if (data) {
+            config.data = data;
+        }
+
+        try {
+            const response = await axios(config);
+            console.log(response.status);
+            console.log(response.data);
+            return response.data;
+        } catch (error) {
+            console.error('Error in processRequest:', error);
+            throw error;
+        }
+    }
+
+    async uploadImage(imagePath) {
+        const url = "https://kwai-kolors-kolors.hf.space/upload?upload_id=uppaw4kwm5";
+        const headers = {
+            ...this.commonHeaders,
+            "content-type": "multipart/form-data"
+        };
+
+        const responseText = await this.processRequest("post", url, headers, null, {
+            image: {
+                path: imagePath,
+                name: 'image.webp'
+            }
+        });
+        const filePath = responseText.replace(/[\[\]"\\\n]/g, '');
+        return filePath;
+    }
+
+    async getJwtToken() {
+        const generateTimestamp = () => encodeURIComponent(new Date().toISOString());
+        const url = `https://huggingface.co/api/spaces/Kwai-Kolors/Kolors/jwt?expiration=${
+            generateTimestamp()
+        }`;
+        const responseText = await this.processRequest("get", url, this.commonHeaders);
+        const responseJson = JSON.parse(responseText);
+        return responseJson.token;
+    }
+
+    async getQueueData(sessionHash) {
+        const url = `https://kwai-kolors-kolors.hf.space/queue/data?session_hash=${sessionHash}`;
+        const headers = {
+            ...this.commonHeaders,
+            "accept": "text/event-stream",
+            "content-type": "application/json"
+        };
+
+        try {
+            const response = await axios.get(url, {headers, responseType: 'stream'});
+            return new Promise((resolve, reject) => {
+                response.data.on('data', (chunk) => {
+                    const lines = chunk.toString().split('\n').filter(line => line.startsWith('data: '));
+                    lines.forEach((line) => {
+                        console.log(line);
+                        const eventData = line.substring(6);
+                        const eventJson = JSON.parse(eventData);
+                        if (eventJson.msg === "process_completed") {
+                            const outputData = eventJson.output ?. data || [];
+                            if (outputData.length > 0) {
+                                const fileInfo = outputData[0];
+                                resolve(fileInfo.url);
+                                response.data.destroy(); // Close the stream
+                            }
+                        }
+                    });
+                });
+
+                response.data.on('end', () => {
+                    reject(new Error('Stream ended without completion'));
+                    response.data.destroy(); // Close the stream
+                });
+
+                response.data.on('error', (err) => {
+                    reject(err);
+                    response.data.destroy(); // Close the stream
+                });
+
+                response.data.on('close', () => {
+                    console.log('Stream closed');
+                });
+            });
+        } catch (error) {
+            console.error('Error in getQueueData:', error);
+            throw error;
+        }
+    }
+
+    async joinQueue(sessionHash, fileUrl, jwtToken, prompt) {
+        const url = "https://kwai-kolors-kolors.hf.space/queue/join?__theme=dark";
+        const headers = {
+            ...this.commonHeaders,
+            "content-type": "application/json",
+            "x-zerogpu-token": jwtToken,
+            "origin": "https://kwai-kolors-kolors.hf.space"
+        };
+
+        const data = {
+            "data": [
+                prompt,
+                {
+                    "path": fileUrl,
+                    "url": `https://kwai-kolors-kolors.hf.space/file=${fileUrl}`,
+                    "orig_name": "image.webp",
+                    "size": 172602,
+                    "mime_type": "image/webp",
+                    "meta": {
+                        "_type": "gradio.FileData"
+                    }
+                },
+                0.3,
+                "",
+                0,
+                true,
+                1024,
+                1536,
+                5,
+                25,
+            ],
+            "event_data": null,
+            "fn_index": 2,
+            "trigger_id": 26,
+            "session_hash": sessionHash
+        };
+
+        const responseText = await this.processRequest("post", url, headers, data);
+        return responseText;
+    }
+} app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({extended: true}));
 
 
 // Function to convert polygon data to SVG path
 function polygonToSVGPath(polygon) {
-    if (!polygon || polygon.length === 0) {
+    if (! polygon || polygon.length === 0) {
         return ''; // Return empty string if polygon is invalid
     }
 
     // Construct the SVG path string
-    let pathString = `M${polygon[0].x},${polygon[0].y}`; // Move to the first point
+    let pathString = `M${
+        polygon[0].x
+    },${
+        polygon[0].y
+    }`; // Move to the first point
     for (let i = 1; i < polygon.length; i++) {
-        pathString += ` L${polygon[i].x},${polygon[i].y}`; // Line to the next point
-    }
-    pathString += ' Z'; // Close the path
+        pathString += ` L${
+            polygon[i].x
+        },${
+            polygon[i].y
+        }`; // Line to the next point
+    }pathString += ' Z'; // Close the path
 
     return pathString;
 }
-
-
 
 
 function handleRequest(err, loadedFont, config) {
@@ -142,6 +311,33 @@ function callMakerjs(font, text, size, union, filled, kerning, separate, bezierA
 
     return {svg, dxf};
 }
+
+app.get('/process', async (req, res) => {
+    const kolors = new Kolors();
+    try {
+        const fileUrl = "/tmp/gradio/a8afacda04e05001682bb475f128b24002ace7b7/e41b87fb-4cc3-43cd-a6e6-f3dbb08c2399.webp";
+        const prompt = req.query.prompt || "Anna, 破旧衣服, 大声喊叫的愤怒脸, 嘴巴张大, 全身, 贫民窟背景, 仙女教母, 时尚TikTok风格衣服, 出现在闪亮和点赞的云中, 脸上带着炫酷的表情, 魔法棒, 变成华丽舞会礼服, 鱼网袜和蕾丝项圈, 震惊表情, 这幅艺术作品致敬了传奇的弗兰克·弗拉泽塔，展示了Loish van Baarle的独特风格和Boris Vallejo的动态笔触。这幅杰作向著名艺术家Ross Tran、Greg Tocchini、Tom Bagshaw和Steve Henderson的才华致敬，创造了一个引人入胜且迷人的场景。";
+
+        // Step 1: Get JWT token
+        const jwtToken = await kolors.getJwtToken();
+        console.log("JWT Token:", jwtToken);
+
+        // Step 2: Join the queue
+        const sessionHash = "l5feg91dxyx"; // Example session hash, replace with actual
+        const queueResponse = await kolors.joinQueue(sessionHash, fileUrl, jwtToken, prompt);
+        console.log("Queue Response:", queueResponse);
+
+        // Step 3: Get queue data and extract the final URL
+        const finalUrl = await kolors.getQueueData(sessionHash);
+        console.log("Final URL:", finalUrl);
+
+        res.send({finalUrl});
+    } catch (error) {
+        console.error("Error:", error);
+        res.status(500).send("An error occurred");
+    }
+});
+
 
 app.post('/generateSVGPath', async (req, res) => { // Set default values
     const {
@@ -263,42 +459,43 @@ app.post('/generateSVGPathWithGoogleFont', async (req, res) => { // Default valu
 });
 
 app.post('/predictions', async (req, res) => {
-    const { input, path } =req.body;
+    const {input, path} = req.body;
     const headers = {
         'Content-Type': 'application/json',
         // Add any other headers here
     };
-      const data = {
+    const data = {
         "input": input,
         "is_training": false,
         "create_model": "0",
         "stream": false
-      }
+    }
     try {
-        const response = await axios.post(`https://replicate.com/api/${path}/predictions`, data, { headers });
+        const response = await axios.post(`https://replicate.com/api/${path}/predictions`, data, {headers});
         return res.json(response.data);
     } catch (error) {
         console.error('Error:', error);
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({error: error.message});
     }
 });
 
 // Route handler for /vectorize
 app.post('/vectorize', (req, res) => {
-    const { imageUrl } = req.body; // Extract imageUrl from request body
+    const {imageUrl} = req.body;
+    // Extract imageUrl from request body
 
     // Call getImageOutline to get the polygon data
     getImageOutline(imageUrl, function (err, polygon) {
         if (err) {
             console.error('Error:', err);
-            return res.status(500).json({ error: 'Error vectorizing image' });
+            return res.status(500).json({error: 'Error vectorizing image'});
         }
 
         // Convert polygon data to SVG path
         const svgPath = polygonToSVGPath(polygon);
 
         // Send the SVG path back to the client as JSON
-        res.json({ svgPath });
+        res.json({svgPath});
     });
 });
 
