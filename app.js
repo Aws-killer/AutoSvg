@@ -438,7 +438,7 @@ app.post("/highlight", express.json(), async (req, res) => {
 
   try {
     // Download the image
-    const tempImagePath = path.join(__dirname, "temp_image.jpg");
+    const tempImagePath = path.join(os.tmpdir(), "temp_image.jpg");
     await downloadImage(imageUrl, tempImagePath);
 
     // Run OCR
