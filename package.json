@@ -16,6 +16,7 @@
     "makerjs": "^0.9.71",
     "nomnom": "^1.8.1",
     "opentype.js": "1.3.4",
+    "tesseract.js": "^5.1.1",
     "wawoff2": "^2.0.1",
     "xml2js": "^0.6.2"
   },
